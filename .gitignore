@@ -1,0 +1,23 @@
+# Android / Gradle generated files
+**/.gradle/
+**/build/
+**/local.properties
+*.hprof
+
+# Android signing material and packaged builds
+*.jks
+*.keystore
+*.apk
+*.aab
+
+# Arduino build artifacts
+*.bin
+*.elf
+*.map
+
+# Local editor and operating-system files
+.idea/
+*.iml
+.vscode/
+Thumbs.db
+.DS_Store
