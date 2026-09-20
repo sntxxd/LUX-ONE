@@ -27,6 +27,7 @@ enum BcmCommand : uint8_t {
   CMD_GET_STATE         = 0x18,
   CMD_SET_CONFIG        = 0x19, // target: configuración persistente
   CMD_GET_CONFIG        = 0x1A,
+  CMD_AUTHORIZE_DEVICE  = 0x1B, // abre ventana 120 s; solo Bluetooth autorizado
 
   CMD_SYNC_REAR         = 0x30, // principal -> nodo trasero
   CMD_HEARTBEAT         = 0x31, // reservado para nodos futuros
@@ -34,6 +35,7 @@ enum BcmCommand : uint8_t {
   CMD_REPORT_STATE      = 0x80,
   CMD_REPORT_ACK        = 0x81,
   CMD_REPORT_CONFIG     = 0x83,
+  CMD_REPORT_DEVICES    = 0x84, // value: cantidad; flags: segundos de alta restantes
 };
 
 enum BcmTarget : uint8_t {

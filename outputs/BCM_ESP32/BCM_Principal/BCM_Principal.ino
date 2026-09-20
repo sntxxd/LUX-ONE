@@ -13,6 +13,7 @@
 #include <Update.h>
 #include <Preferences.h>
 #include <esp_arduino_version.h>
+#include <atomic>
 #include "BcmProtocol.h"
 
 #if !defined(CONFIG_BT_ENABLED) || !defined(CONFIG_BLUEDROID_ENABLED)
@@ -139,6 +140,120 @@ uint32_t unlockUntil = 0;
 uint32_t restartAt = 0;
 uint32_t lastRearSyncAt = 0;
 uint16_t lastOutputMask = 0xFFFF;
+
+// Dispositivos autorizados persistentes. NVS se escribe únicamente desde loop().
+constexpr uint8_t MAX_AUTHORIZED = 8;
+uint8_t authorizedAddresses[MAX_AUTHORIZED][6] = {};
+uint8_t authorizedCount = 0;
+uint32_t enrollmentUntil = 0;
+esp_bd_addr_t enrollmentBaseline[32];
+int baselineCount = 0;
+std::atomic<bool> ownerSession(false);
+QueueHandle_t btOwnerQueue = nullptr;
+struct OwnerEvent { bool opened; uint32_t handle; uint8_t address[6]; };
+uint32_t ownerHandle = 0;
+
+void onOwnerSppEvent(esp_spp_cb_event_t event, esp_spp_cb_param_t *param) {
+  OwnerEvent item = {};
+  if (event == ESP_SPP_SRV_OPEN_EVT) {
+    ownerSession.store(false);
+    item.opened = true;
+    item.handle = param->srv_open.handle;
+    memcpy(item.address, param->srv_open.rem_bda, 6);
+  } else if (event == ESP_SPP_CLOSE_EVT) {
+    item.handle = param->close.handle;
+    ownerSession.store(false);
+  } else return;
+  if (btOwnerQueue == nullptr || xQueueSend(btOwnerQueue, &item, 0) != pdTRUE) {
+    ownerSession.store(false);
+    if (item.opened) esp_spp_disconnect(item.handle);
+  }
+}
+
+bool isAuthorized(const uint8_t *address) {
+  for (uint8_t i = 0; i < authorizedCount; ++i)
+    if (memcmp(authorizedAddresses[i], address, 6) == 0) return true;
+  return false;
+}
+
+bool enrollmentOpen() {
+  return enrollmentUntil != 0 && static_cast<int32_t>(enrollmentUntil - millis()) > 0;
+}
+
+bool addAuthorized(const uint8_t *address) {
+  if (isAuthorized(address)) return true;
+  if (authorizedCount >= MAX_AUTHORIZED) return false;
+  memcpy(authorizedAddresses[authorizedCount], address, 6);
+  const size_t length = (authorizedCount + 1) * 6;
+  if (prefs.putBytes("btAllowed", authorizedAddresses, length) != length) return false;
+  ++authorizedCount;
+  enrollmentUntil = 0; // una sola alta por ventana
+  Serial.println("LUX ONE: dispositivo autorizado guardado");
+  return true;
+}
+
+bool beginEnrollment() {
+  if (authorizedCount >= MAX_AUTHORIZED) return false;
+  baselineCount = esp_bt_gap_get_bond_device_num();
+  if (baselineCount < 0 || baselineCount > 32) return false;
+  if (baselineCount > 0 && esp_bt_gap_get_bond_device_list(&baselineCount, enrollmentBaseline) != ESP_OK) return false;
+  enrollmentUntil = millis() + 120000;
+  return true;
+}
+
+bool eligibleForEnrollment(const uint8_t *address) {
+  if (!enrollmentOpen()) return false;
+  for (int i = 0; i < baselineCount; ++i)
+    if (memcmp(enrollmentBaseline[i], address, 6) == 0) return false;
+  return true;
+}
+
+void handleOwner() {
+  static uint32_t lastCheck = 0;
+  if ((authorizedCount == 0 || enrollmentOpen()) && millis() - lastCheck >= 500) {
+    lastCheck = millis();
+    int count = esp_bt_gap_get_bond_device_num();
+    if (count > 0 && count <= 32) {
+      esp_bd_addr_t bonds[32];
+      if (esp_bt_gap_get_bond_device_list(&count, bonds) == ESP_OK) {
+        for (int i = 0; i < count; ++i) {
+          if ((authorizedCount == 0 && count == 1) || eligibleForEnrollment(bonds[i])) {
+            addAuthorized(bonds[i]);
+            break;
+          }
+        }
+      }
+    }
+  }
+  OwnerEvent item;
+  while (btOwnerQueue != nullptr && xQueueReceive(btOwnerQueue, &item, 0) == pdTRUE) {
+    if (!item.opened) {
+      if (ownerHandle == item.handle) { ownerSession.store(false); ownerHandle = 0; btLength = 0; }
+      continue;
+    }
+    // Exigir vínculo Bluetooth autenticado además de la lista de autorizados.
+    int count = esp_bt_gap_get_bond_device_num();
+    bool bonded = false;
+    if (count > 0 && count <= 32) {
+      esp_bd_addr_t bonds[32];
+      if (esp_bt_gap_get_bond_device_list(&count, bonds) == ESP_OK) {
+        for (int i = 0; i < count; ++i) if (memcmp(bonds[i], item.address, 6) == 0) bonded = true;
+      }
+    }
+    if (bonded && !isAuthorized(item.address) &&
+        (authorizedCount == 0 || enrollmentOpen())) addAuthorized(item.address);
+    if (!bonded || !isAuthorized(item.address)) {
+      esp_spp_disconnect(item.handle);
+      Serial.println("LUX ONE: teléfono no autorizado");
+      continue;
+    }
+    ownerHandle = item.handle;
+    btLength = 0;
+    while (SerialBT.available()) SerialBT.read();
+    ownerSession.store(true);
+  }
+
+}
 
 bool macConfigured(const uint8_t mac[6]) {
   for (uint8_t i = 0; i < 6; ++i) if (mac[i] != 0) return true;
@@ -429,6 +544,11 @@ void sendAck(uint8_t sequence, uint8_t command, uint8_t result) {
   sendBluetoothPacket(PKT_ACK, sequence, CMD_REPORT_ACK, command, result);
 }
 
+void reportDevices(uint8_t sequence) {
+  uint8_t remaining = enrollmentOpen() ? (enrollmentUntil - millis() + 999) / 1000 : 0;
+  sendBluetoothPacket(PKT_STATE, sequence, CMD_REPORT_DEVICES, TARGET_SYSTEM, authorizedCount, remaining);
+}
+
 bool addRearPeer() {
   if (!macConfigured(MAC_DEL_NODO_TRASERO)) {
     Serial.println("ESP-NOW deshabilitado: configure MAC_DEL_NODO_TRASERO.");
@@ -514,8 +634,12 @@ void processCommand(const BcmPacket &packet, bool fromBluetooth) {
       break;
     case CMD_GET_STATE:
       calculateOutputs();
-      if (fromBluetooth) reportState(packet.sequence);
+      if (fromBluetooth) { reportState(packet.sequence); reportDevices(packet.sequence); }
       return;
+    case CMD_AUTHORIZE_DEVICE:
+      if (!fromBluetooth || !ownerSession.load() || !beginEnrollment()) result = 1;
+      if (fromBluetooth) reportDevices(packet.sequence);
+      break;
     case CMD_SET_CONFIG:
       if (!setFeedbackConfig(packet.target, packet.value)) result = 1;
       else saveFeedbackConfig();
@@ -536,6 +660,11 @@ void processCommand(const BcmPacket &packet, bool fromBluetooth) {
 }
 
 void handleBluetooth() {
+  if (!ownerSession.load()) {
+    btLength = 0;
+    while (SerialBT.available()) SerialBT.read();
+    return;
+  }
   while (SerialBT.available()) {
     const uint8_t incoming = static_cast<uint8_t>(SerialBT.read());
     if (btLength == 0 && incoming != BCM_SOF) continue;
@@ -544,7 +673,7 @@ void handleBluetooth() {
     BcmPacket packet;
     memcpy(&packet, btBuffer, sizeof(packet));
     btLength = 0;
-    if (bcmIsValid(packet)) processCommand(packet, true);
+    if (ownerSession.load() && bcmIsValid(packet)) processCommand(packet, true);
     else Serial.println("Bluetooth: paquete inválido");
   }
 }
@@ -674,6 +803,15 @@ void setup() {
   Serial.begin(115200);
   delay(300);
   prefs.begin("bcm", false);
+  const size_t savedLength = prefs.getBytesLength("btAllowed");
+  if (savedLength > 0 && savedLength <= sizeof(authorizedAddresses) && savedLength % 6 == 0 &&
+      prefs.getBytes("btAllowed", authorizedAddresses, savedLength) == savedLength) {
+    authorizedCount = savedLength / 6;
+  } else if (prefs.getBytesLength("btOwner") == 6) {
+    uint8_t previousOwner[6];
+    if (prefs.getBytes("btOwner", previousOwner, 6) == 6) addAuthorized(previousOwner);
+  }
+  btOwnerQueue = xQueueCreate(8, sizeof(OwnerEvent));
   loadLightConfig();
   loadFeedbackConfig();
   configurePins();
@@ -684,6 +822,7 @@ void setup() {
 #else
   SerialBT.setPin(BT_PIN);
 #endif
+  SerialBT.register_callback(onOwnerSppEvent);
   SerialBT.begin(DEVICE_NAME);
   Serial.printf("Bluetooth SPP: %s\n", DEVICE_NAME);
 
@@ -692,6 +831,7 @@ void setup() {
 }
 
 void loop() {
+  handleOwner();
   handleBluetooth();
   handleEspNowPackets();
   updateLdr();

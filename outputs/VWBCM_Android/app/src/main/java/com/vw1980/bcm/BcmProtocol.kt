@@ -10,6 +10,13 @@ object BcmProtocol {
     const val CMD_GET_STATE = 0x18
     const val CMD_SET_CONFIG = 0x19
     const val CMD_GET_CONFIG = 0x1A
+    const val CMD_AUTHORIZE_DEVICE = 0x1B
+
+    data class Devices(val count: Int, val enrollmentSeconds: Int)
+    fun parseDevices(packet: ByteArray): Devices? {
+        if (!isValid(packet) || packet[2].toInt() and 0xFF != 0x81 || packet[4].toInt() and 0xFF != 0x84) return null
+        return Devices(packet[6].toInt() and 0xFF, packet[8].toInt() and 0xFF)
+    }
 
     const val TARGET_SYSTEM = 0
     const val TARGET_HEADLIGHT = 1

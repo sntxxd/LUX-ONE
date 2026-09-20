@@ -6,7 +6,7 @@
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
-    <application android:allowBackup="false" android:label="VW BCM" android:theme="@style/Theme.VWBCM">
+    <application android:allowBackup="false" android:label="LUX ONE" android:theme="@style/Theme.VWBCM">
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
