@@ -51,7 +51,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlin.math.roundToInt
 
 class MainActivity : ComponentActivity() {
-    private val bluetooth by lazy { BluetoothBcm() }
+    private val bluetooth by lazy { BluetoothBcm(applicationContext) }
     private var ready by mutableStateOf(false)
     private var foreground by mutableStateOf(false)
     private fun hasPermissions() = Build.VERSION.SDK_INT < 31 ||
@@ -64,16 +64,20 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         AppDiagnostics.install(applicationContext)
         ready = hasPermissions()
-        if (!ready) {
-            permissionLauncher.launch(arrayOf(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN))
-        }
+        val permissions = mutableListOf<String>()
+        if (!ready) permissions.addAll(listOf(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN))
+        if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
+            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+        if (permissions.isNotEmpty()) permissionLauncher.launch(permissions.toTypedArray())
         setContent { BcmApp(bluetooth, ready && foreground) }
     }
 
     override fun onResume() { super.onResume(); ready = hasPermissions(); foreground = true }
-    override fun onStop() { foreground = false; bluetooth.close(); super.onStop() }
-
-    override fun onDestroy() { bluetooth.close(); super.onDestroy() }
+    override fun onStop() {
+        foreground = false
+        BcmLink.stopShowRequested = true // keep link, but never keep Autoshow unattended
+        super.onStop()
+    }
 }
 
 private enum class DetailGroup { WHITE, ORANGE }
@@ -91,7 +95,7 @@ private fun BcmApp(bluetooth: BluetoothBcm, ready: Boolean) {
     var devices by remember { mutableStateOf(emptyList<BluetoothDevice>()) }
     var selected by remember { mutableStateOf<BluetoothDevice?>(null) }
     var connected by remember { mutableStateOf(false) }
-    var reconnectEnabled by remember { mutableStateOf(savedAddress != null) }
+    var reconnectEnabled by remember { mutableStateOf(savedAddress != null && !bluetooth.isPaused()) }
     var lastVerifiedAt by remember { mutableLongStateOf(0L) }
     var bcmState by remember { mutableStateOf<BcmProtocol.State?>(null) }
     var feedbackConfig by remember { mutableStateOf(BcmProtocol.Config()) }
@@ -161,7 +165,7 @@ private fun BcmApp(bluetooth: BluetoothBcm, ready: Boolean) {
             devices = bluetooth.pairedDevices()
             if (savedAddress != null && selected == null) {
                 selected = bluetooth.savedDevice(savedAddress!!)
-                reconnectEnabled = true
+                reconnectEnabled = !bluetooth.isPaused()
                 if (selected == null) message = "Vuelve a emparejar tu auto desde Bluetooth"
             }
             delay(2500)
@@ -172,7 +176,6 @@ private fun BcmApp(bluetooth: BluetoothBcm, ready: Boolean) {
         scope.launch {
             bluetooth.send(command, target, value).onFailure {
                 connected = false
-                bluetooth.close()
                 message = "BCM desconectado; reconectando…"
             }
         }
@@ -215,12 +218,11 @@ private fun BcmApp(bluetooth: BluetoothBcm, ready: Boolean) {
                     connected = true
                     lastVerifiedAt = SystemClock.elapsedRealtime()
                     message = "Verificando tu auto…"
-                    bluetooth.send(BcmProtocol.CMD_GET_CONFIG)
-                    bluetooth.send(BcmProtocol.CMD_SHOW_GET)
+                    // The service keeps verified state/configuration while the screen is off.
                 } else {
                     message = "Buscando tu auto…"
                 }
-                delay(2000)
+                if (connection.isFailure) delay(2000)
                 continue
             }
 
@@ -228,7 +230,6 @@ private fun BcmApp(bluetooth: BluetoothBcm, ready: Boolean) {
               lastPoll = SystemClock.elapsedRealtime()
               bluetooth.send(BcmProtocol.CMD_GET_STATE).onFailure {
                 connected = false
-                bluetooth.close()
                 message = "BCM desconectado; reconectando…"
               }
             }
@@ -285,14 +286,12 @@ private fun BcmApp(bluetooth: BluetoothBcm, ready: Boolean) {
                 }
             }.onFailure {
                 connected = false
-                bluetooth.close()
                 message = "BCM desconectado; reconectando…"
             }
 
             if (connected && SystemClock.elapsedRealtime() - lastVerifiedAt > 5000) {
                 connected = false
                 bcmState = null
-                bluetooth.close()
                 message = "Sin respuesta del BCM; reconectando…"
             }
             delay(100)

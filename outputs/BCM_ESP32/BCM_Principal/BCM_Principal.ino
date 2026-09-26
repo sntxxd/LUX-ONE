@@ -17,6 +17,7 @@
 #include "BcmProtocol.h"
 #include "ShowEngine.h"
 #include "LdrSettings.h"
+#include "SwitchOff.h"
 
 #if !defined(CONFIG_BT_ENABLED) || !defined(CONFIG_BLUEDROID_ENABLED)
 #error Bluetooth clásico no está habilitado para esta placa.
@@ -127,6 +128,7 @@ WebServer web(80);
 Preferences prefs;
 QueueHandle_t espNowQueue = nullptr;
 ManualState manual;
+SwitchOff switchOff;
 OutputState outputs;
 FeedbackConfig feedback;
 ChirpEngine chirps;
@@ -472,6 +474,22 @@ void calculateOutputs() {
   const bool originalHorn = optoActive(PIN_OPTO_HORN);
   const bool originalHeadlight = originalHigh || originalLow;
   const bool originalExterior = originalHeadlight || originalParking;
+  static bool wasExterior = false, ringLeftAtOff = false, ringRightAtOff = false;
+  static HeadlightMode lastOriginalHeadlight = HEADLIGHT_OFF;
+  if (originalExterior) lastOriginalHeadlight = originalHigh ? HEADLIGHT_HIGH :
+    (originalLow ? HEADLIGHT_LOW : HEADLIGHT_OFF);
+  if (wasExterior && !originalExterior) {
+    ringLeftAtOff = outputs.whiteLeft;
+    ringRightAtOff = outputs.whiteRight;
+  }
+  wasExterior = originalExterior;
+  if (switchOff.update(originalExterior, millis())) {
+    // Cancel stale app commands and suppress LDR/show until a new app command.
+    // Keep explicit ring commands; rings that followed parking keep their state.
+    cancelExteriorCommands(manual, ringLeftAtOff, ringRightAtOff);
+    autoshow.stop();
+  }
+  const bool switchingOff = switchOff.pending();
   // Sin sensor de velocidad: el usuario confirma auto estacionado. Cualquier
   // mando original detiene el show hasta que el usuario vuelva a iniciarlo.
   if (originalExterior || originalTurnLeft || originalTurnRight || originalHorn ||
@@ -480,17 +498,19 @@ void calculateOutputs() {
 
   if (originalHigh) outputs.headlight = HEADLIGHT_HIGH;
   else if (originalLow) outputs.headlight = HEADLIGHT_LOW;
+  else if (originalParking) outputs.headlight = HEADLIGHT_OFF;
+  else if (switchingOff) outputs.headlight = lastOriginalHeadlight;
   else if (manual.headlight >= 0) outputs.headlight = static_cast<HeadlightMode>(manual.headlight);
   else if (autoEnabled) outputs.headlight = autoDark ? HEADLIGHT_LOW : HEADLIGHT_OFF;
   else outputs.headlight = (showMask & 2) ? HEADLIGHT_HIGH : ((showMask & 1) ? HEADLIGHT_LOW : HEADLIGHT_OFF);
 
   // Los cuartos son obligatorios con bajas o altas. Esto también anula una
   // orden manual anterior de apagarlos mientras exista un faro encendido.
-  if (originalExterior || outputs.headlight != HEADLIGHT_OFF) outputs.parking = true;
+  if (originalExterior || switchingOff || outputs.headlight != HEADLIGHT_OFF) outputs.parking = true;
   else if (manual.parking >= 0) outputs.parking = manual.parking;
   else outputs.parking = autoEnabled ? autoDark : (showMask & 4) != 0;
 
-  if (originalExterior) outputs.whiteLeft = outputs.whiteRight = true;
+  if (originalExterior || switchingOff) outputs.whiteLeft = outputs.whiteRight = true;
   else {
     const bool higherWhite = manual.whiteRings >= 0 || manual.parking >= 0 || manual.headlight >= 0 || autoEnabled;
     const bool groupWhite = manual.whiteRings >= 0 ? manual.whiteRings : outputs.parking;
@@ -511,11 +531,11 @@ void calculateOutputs() {
   outputs.actuatorLock = millis() < lockUntil;
   outputs.actuatorUnlock = millis() < unlockUntil;
 
-  if (originalExterior || outputs.headlight != HEADLIGHT_OFF) outputs.rearParking = true;
+  if (originalExterior || switchingOff || outputs.headlight != HEADLIGHT_OFF) outputs.rearParking = true;
   else if (manual.rearParking >= 0) outputs.rearParking = manual.rearParking;
   else outputs.rearParking = outputs.parking;
 
-  if (originalExterior || outputs.headlight != HEADLIGHT_OFF) outputs.licenseLight = true;
+  if (originalExterior || switchingOff || outputs.headlight != HEADLIGHT_OFF) outputs.licenseLight = true;
   else if (manual.licenseLight >= 0) outputs.licenseLight = manual.licenseLight;
   else outputs.licenseLight = outputs.parking;
 }

@@ -19,7 +19,7 @@ import kotlin.concurrent.thread
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
-class BluetoothBcm {
+internal class BluetoothTransport {
     private val adapter by lazy { runCatching { BluetoothAdapter.getDefaultAdapter() }.getOrNull() }
 
     fun label(device: BluetoothDevice): String = runCatching { device.name }.getOrNull() ?: "BCM"
