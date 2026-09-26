@@ -15,6 +15,8 @@
 #include <esp_arduino_version.h>
 #include <atomic>
 #include "BcmProtocol.h"
+#include "ShowEngine.h"
+#include "LdrSettings.h"
 
 #if !defined(CONFIG_BT_ENABLED) || !defined(CONFIG_BLUEDROID_ENABLED)
 #error Bluetooth clásico no está habilitado para esta placa.
@@ -69,10 +71,13 @@ constexpr uint8_t PWM_CH_RIGHT = 1;
 constexpr uint8_t HEADLIGHT_PWM = 255;
 
 // Cambiar a false si el ADC sube en oscuridad con su divisor LDR.
-constexpr bool LDR_DARK_IS_LOW = true;
+bool LDR_DARK_IS_LOW = true;
 constexpr uint16_t DEFAULT_LDR_ON = 1500;
 constexpr uint16_t DEFAULT_LDR_OFF = 1900;
-constexpr uint32_t LDR_CONFIRM_MS = 5000;
+uint32_t LDR_CONFIRM_MS = 5000;
+LdrSettings ldrDraft;
+uint8_t ldrFields = 0;
+uint32_t ldrEditAt = 0;
 constexpr uint32_t MAX_HORN_APP_MS = 1000;
 constexpr uint32_t ACTUATOR_PULSE_MS = 650;
 constexpr uint32_t REAR_SYNC_MS = 1000;
@@ -113,6 +118,8 @@ struct FeedbackConfig {
   bool unlockChirp = false;
   bool unlockWhite = false;
   uint16_t durationMs = 220;
+  uint8_t lockCount = 1;
+  uint16_t lockGapMs = 200;
 };
 
 BluetoothSerial SerialBT;
@@ -122,6 +129,12 @@ QueueHandle_t espNowQueue = nullptr;
 ManualState manual;
 OutputState outputs;
 FeedbackConfig feedback;
+ChirpEngine chirps;
+ShowPattern showPattern, showDraft;
+ShowEngine autoshow;
+bool showEditing = false;
+uint16_t showMasksReceived = 0, showTimesReceived = 0;
+uint32_t showEditAt = 0, lastShowHeartbeat = 0;
 
 uint8_t nextSequence = 1;
 uint8_t btBuffer[sizeof(BcmPacket)];
@@ -311,12 +324,22 @@ void saveLightConfig() {
   prefs.putBool("auto", autoEnabled);
   prefs.putUShort("ldrOn", ldrOnThreshold);
   prefs.putUShort("ldrOff", ldrOffThreshold);
+  LdrSettings settings;
+  settings.on = ldrOnThreshold; settings.off = ldrOffThreshold;
+  settings.confirmMs = LDR_CONFIRM_MS; settings.darkIsLow = LDR_DARK_IS_LOW;
+  prefs.putBytes("ldrV1", &settings, sizeof(settings));
 }
 
 void loadLightConfig() {
   autoEnabled = prefs.getBool("auto", true);
   ldrOnThreshold = prefs.getUShort("ldrOn", DEFAULT_LDR_ON);
   ldrOffThreshold = prefs.getUShort("ldrOff", DEFAULT_LDR_OFF);
+  LdrSettings saved;
+  if (prefs.getBytesLength("ldrV1") == sizeof(saved) &&
+      prefs.getBytes("ldrV1", &saved, sizeof(saved)) == sizeof(saved) && saved.valid()) {
+    ldrOnThreshold = saved.on; ldrOffThreshold = saved.off;
+    LDR_CONFIRM_MS = saved.confirmMs; LDR_DARK_IS_LOW = saved.darkIsLow;
+  }
   const bool invalid = ldrOnThreshold >= 4096 || ldrOffThreshold >= 4096 ||
     (LDR_DARK_IS_LOW && ldrOnThreshold >= ldrOffThreshold) ||
     (!LDR_DARK_IS_LOW && ldrOnThreshold <= ldrOffThreshold);
@@ -333,6 +356,8 @@ void saveFeedbackConfig() {
   prefs.putBool("unlockChirp", feedback.unlockChirp);
   prefs.putBool("unlockWhite", feedback.unlockWhite);
   prefs.putUShort("feedMs", feedback.durationMs);
+  prefs.putUChar("lockCount", feedback.lockCount);
+  prefs.putUShort("lockGap", feedback.lockGapMs);
 }
 
 void loadFeedbackConfig() {
@@ -341,6 +366,10 @@ void loadFeedbackConfig() {
   feedback.unlockChirp = prefs.getBool("unlockChirp", false);
   feedback.unlockWhite = prefs.getBool("unlockWhite", false);
   feedback.durationMs = prefs.getUShort("feedMs", 220);
+  feedback.lockCount = prefs.getUChar("lockCount", 1);
+  feedback.lockGapMs = prefs.getUShort("lockGap", 200);
+  if (feedback.lockCount < 1 || feedback.lockCount > 5) feedback.lockCount = 1;
+  if (feedback.lockGapMs < 50 || feedback.lockGapMs > 2000) feedback.lockGapMs = 200;
   if (feedback.durationMs < 50 || feedback.durationMs > MAX_HORN_APP_MS) {
     feedback.durationMs = 220;
     saveFeedbackConfig();
@@ -348,6 +377,14 @@ void loadFeedbackConfig() {
 }
 
 bool setFeedbackConfig(uint8_t target, int16_t value) {
+  if (target == TARGET_CFG_LOCK_COUNT) {
+    if (value < 1 || value > 5) return false;
+    feedback.lockCount = value; return true;
+  }
+  if (target == TARGET_CFG_LOCK_GAP) {
+    if (value < 50 || value > 2000) return false;
+    feedback.lockGapMs = value; return true;
+  }
   if (target == TARGET_CFG_FEEDBACK_MS) {
     if (value < 50 || value > MAX_HORN_APP_MS) return false;
     feedback.durationMs = static_cast<uint16_t>(value);
@@ -366,7 +403,8 @@ bool setFeedbackConfig(uint8_t target, int16_t value) {
 void triggerVehicleFeedback(bool locking) {
   const bool chirp = locking ? feedback.lockChirp : feedback.unlockChirp;
   const bool white = locking ? feedback.lockWhite : feedback.unlockWhite;
-  if (chirp) hornUntil = millis() + feedback.durationMs;
+  chirps.count = 0;
+  if (chirp) chirps.start(millis(), locking ? feedback.lockCount : 1, feedback.durationMs, feedback.lockGapMs);
   if (white) whiteFeedbackUntil = millis() + feedback.durationMs;
 }
 
@@ -423,7 +461,7 @@ bool setManualTarget(uint8_t target, int16_t value, bool release) {
   return false;
 }
 
-// Prioridad por función: original > app > LDR. Una direccional original no
+// Prioridad por función: original > app > LDR > Autoshow. Una direccional original no
 // bloquea la app en faros, pero sí toma inmediatamente su aro naranja.
 void calculateOutputs() {
   const bool originalHigh = optoActive(PIN_OPTO_HIGH);
@@ -434,30 +472,42 @@ void calculateOutputs() {
   const bool originalHorn = optoActive(PIN_OPTO_HORN);
   const bool originalHeadlight = originalHigh || originalLow;
   const bool originalExterior = originalHeadlight || originalParking;
+  // Sin sensor de velocidad: el usuario confirma auto estacionado. Cualquier
+  // mando original detiene el show hasta que el usuario vuelva a iniciarlo.
+  if (originalExterior || originalTurnLeft || originalTurnRight || originalHorn ||
+      !ownerSession.load() || millis() - lastShowHeartbeat > 6000) autoshow.stop();
+  const uint16_t showMask = autoshow.tick(millis(), showPattern);
 
   if (originalHigh) outputs.headlight = HEADLIGHT_HIGH;
   else if (originalLow) outputs.headlight = HEADLIGHT_LOW;
   else if (manual.headlight >= 0) outputs.headlight = static_cast<HeadlightMode>(manual.headlight);
-  else outputs.headlight = (autoEnabled && autoDark) ? HEADLIGHT_LOW : HEADLIGHT_OFF;
+  else if (autoEnabled) outputs.headlight = autoDark ? HEADLIGHT_LOW : HEADLIGHT_OFF;
+  else outputs.headlight = (showMask & 2) ? HEADLIGHT_HIGH : ((showMask & 1) ? HEADLIGHT_LOW : HEADLIGHT_OFF);
 
   // Los cuartos son obligatorios con bajas o altas. Esto también anula una
   // orden manual anterior de apagarlos mientras exista un faro encendido.
   if (originalExterior || outputs.headlight != HEADLIGHT_OFF) outputs.parking = true;
   else if (manual.parking >= 0) outputs.parking = manual.parking;
-  else outputs.parking = autoEnabled && autoDark;
+  else outputs.parking = autoEnabled ? autoDark : (showMask & 4) != 0;
 
   if (originalExterior) outputs.whiteLeft = outputs.whiteRight = true;
   else {
+    const bool higherWhite = manual.whiteRings >= 0 || manual.parking >= 0 || manual.headlight >= 0 || autoEnabled;
     const bool groupWhite = manual.whiteRings >= 0 ? manual.whiteRings : outputs.parking;
-    outputs.whiteLeft = manual.whiteLeft >= 0 ? manual.whiteLeft : groupWhite;
-    outputs.whiteRight = manual.whiteRight >= 0 ? manual.whiteRight : groupWhite;
+    outputs.whiteLeft = manual.whiteLeft >= 0 ? manual.whiteLeft :
+      (higherWhite || !autoshow.running ? groupWhite : (showMask & 8) != 0);
+    outputs.whiteRight = manual.whiteRight >= 0 ? manual.whiteRight :
+      (higherWhite || !autoshow.running ? groupWhite : (showMask & 16) != 0);
   }
   if (millis() < whiteFeedbackUntil) outputs.whiteLeft = outputs.whiteRight = true;
 
   const bool groupOrange = manual.orangeRings >= 0 ? manual.orangeRings : false;
-  outputs.orangeLeft = originalTurnLeft ? true : (manual.orangeLeft >= 0 ? manual.orangeLeft : groupOrange);
-  outputs.orangeRight = originalTurnRight ? true : (manual.orangeRight >= 0 ? manual.orangeRight : groupOrange);
-  outputs.horn = originalHorn || millis() < hornUntil;
+  outputs.orangeLeft = originalTurnLeft ? true : (manual.orangeLeft >= 0 ? manual.orangeLeft :
+    (manual.orangeRings >= 0 ? groupOrange : (showMask & 32) != 0));
+  outputs.orangeRight = originalTurnRight ? true : (manual.orangeRight >= 0 ? manual.orangeRight :
+    (manual.orangeRings >= 0 ? groupOrange : (showMask & 64) != 0));
+  const bool chirpOn = chirps.tick(millis());
+  outputs.horn = originalHorn || millis() < hornUntil || chirpOn;
   outputs.actuatorLock = millis() < lockUntil;
   outputs.actuatorUnlock = millis() < unlockUntil;
 
@@ -538,6 +588,25 @@ void reportFeedbackConfig(uint8_t sequence) {
   // flags va en value; flags del paquete codifica duración en pasos de 10 ms.
   sendBluetoothPacket(PKT_STATE, sequence, CMD_REPORT_CONFIG, TARGET_SYSTEM,
     static_cast<int16_t>(flags), static_cast<uint8_t>(feedback.durationMs / 10));
+  sendBluetoothPacket(PKT_STATE, sequence, CMD_REPORT_CHIRP, feedback.lockCount, feedback.lockGapMs);
+}
+
+void reportShow(uint8_t sequence, bool pattern) {
+  sendBluetoothPacket(PKT_STATE, sequence, CMD_REPORT_SHOW, autoshow.step, autoshow.running, showPattern.repeat);
+  if (!pattern) return;
+  for (uint8_t i = 0; i < 16; ++i) {
+    sendBluetoothPacket(PKT_STATE, sequence, CMD_REPORT_SHOW_MASK, i, showPattern.masks[i]);
+    sendBluetoothPacket(PKT_STATE, sequence, CMD_REPORT_SHOW_TIME, i, showPattern.durations[i]);
+  }
+}
+
+void reportLdr(uint8_t sequence, bool config) {
+  sendBluetoothPacket(PKT_STATE, sequence, CMD_REPORT_LDR, 0, static_cast<int16_t>(ldrFiltered), autoDark);
+  if (!config) return;
+  sendBluetoothPacket(PKT_STATE, sequence, CMD_REPORT_LDR_CONFIG, 0, ldrOnThreshold);
+  sendBluetoothPacket(PKT_STATE, sequence, CMD_REPORT_LDR_CONFIG, 1, ldrOffThreshold);
+  sendBluetoothPacket(PKT_STATE, sequence, CMD_REPORT_LDR_CONFIG, 2, LDR_CONFIRM_MS);
+  sendBluetoothPacket(PKT_STATE, sequence, CMD_REPORT_LDR_CONFIG, 3, LDR_DARK_IS_LOW);
 }
 
 void sendAck(uint8_t sequence, uint8_t command, uint8_t result) {
@@ -582,8 +651,62 @@ void sendRearState() {
 
 void processCommand(const BcmPacket &packet, bool fromBluetooth) {
   if (packet.kind != PKT_COMMAND) return;
+  if (fromBluetooth) lastShowHeartbeat = millis();
   uint8_t result = 0;
   switch (packet.command) {
+    case CMD_LDR_STAGE:
+      if (packet.target > 3 || packet.value < 0) { result = 1; break; }
+      if (millis() - ldrEditAt > 10000) ldrFields = 0;
+      if (packet.target == 0) { ldrFields = 0; ldrDraft = LdrSettings(); ldrDraft.on = packet.value; }
+      if (packet.target == 1) ldrDraft.off = packet.value;
+      if (packet.target == 2) ldrDraft.confirmMs = packet.value;
+      if (packet.target == 3) { if (packet.value > 1) { result = 1; break; } ldrDraft.darkIsLow = packet.value; }
+      ldrFields |= 1u << packet.target; ldrEditAt = millis();
+      break;
+    case CMD_LDR_SAVE:
+      if (ldrFields != 15 || millis() - ldrEditAt > 10000 || !ldrDraft.valid() ||
+          prefs.putBytes("ldrV1", &ldrDraft, sizeof(ldrDraft)) != sizeof(ldrDraft)) { result = 1; break; }
+      ldrOnThreshold = ldrDraft.on; ldrOffThreshold = ldrDraft.off;
+      LDR_CONFIRM_MS = ldrDraft.confirmMs; LDR_DARK_IS_LOW = ldrDraft.darkIsLow;
+      ldrCandidateSince = millis(); ldrFields = 0;
+      if (fromBluetooth) reportLdr(packet.sequence, true);
+      break;
+    case CMD_TEST_LOCK_SOUND:
+      triggerVehicleFeedback(true);
+      break;
+    case CMD_SHOW_BEGIN:
+      autoshow.stop(); showEditing = true; showDraft = ShowPattern();
+      showMasksReceived = showTimesReceived = 0; showEditAt = millis();
+      break;
+    case CMD_SHOW_MASK:
+    case CMD_SHOW_TIME:
+      if (!showEditing || packet.target >= 16 || millis() - showEditAt > 10000) { result = 1; break; }
+      if (packet.command == CMD_SHOW_MASK) {
+        if (packet.value < 0 || packet.value > 127 || (packet.value & 3) == 3) { result = 1; break; }
+        showDraft.masks[packet.target] = packet.value;
+        showMasksReceived |= 1u << packet.target;
+      } else {
+        if (packet.value < 200 || packet.value > 5000) { result = 1; break; }
+        showDraft.durations[packet.target] = packet.value;
+        showTimesReceived |= 1u << packet.target;
+      }
+      showEditAt = millis();
+      break;
+    case CMD_SHOW_SAVE:
+      if (!showEditing || millis() - showEditAt > 10000 || showMasksReceived != 0xFFFF || showTimesReceived != 0xFFFF ||
+          (packet.value != 0 && packet.value != 1)) { result = 1; break; }
+      showDraft.repeat = packet.value;
+      if (!showDraft.valid() || prefs.putBytes("showV1", &showDraft, sizeof(showDraft)) != sizeof(showDraft)) { result = 1; break; }
+      showPattern = showDraft; showEditing = false;
+      break;
+    case CMD_SHOW_CONTROL:
+      if (packet.value == 0) autoshow.stop();
+      else if (packet.value == 1 && !showEditing && fromBluetooth && ownerSession.load()) autoshow.start(millis());
+      else result = 1;
+      break;
+    case CMD_SHOW_GET:
+      if (fromBluetooth) reportShow(packet.sequence, true);
+      return;
     case CMD_SET_AUTO:
       if (packet.value == 0 || packet.value == 1) {
         autoEnabled = packet.value;
@@ -621,20 +744,22 @@ void processCommand(const BcmPacket &packet, bool fromBluetooth) {
       triggerVehicleFeedback(false);
       break;
     case CMD_SET_LDR_ON:
-      if (packet.value >= 0 && packet.value < ldrOffThreshold) {
+      if (packet.value >= 0 && packet.value <= 4095 &&
+          (LDR_DARK_IS_LOW ? packet.value + 50 <= ldrOffThreshold : packet.value >= ldrOffThreshold + 50)) {
         ldrOnThreshold = packet.value;
         saveLightConfig();
       } else result = 1;
       break;
     case CMD_SET_LDR_OFF:
-      if (packet.value > ldrOnThreshold && packet.value < 4096) {
+      if (packet.value >= 0 && packet.value <= 4095 &&
+          (LDR_DARK_IS_LOW ? packet.value >= ldrOnThreshold + 50 : packet.value + 50 <= ldrOnThreshold)) {
         ldrOffThreshold = packet.value;
         saveLightConfig();
       } else result = 1;
       break;
     case CMD_GET_STATE:
       calculateOutputs();
-      if (fromBluetooth) { reportState(packet.sequence); reportDevices(packet.sequence); }
+      if (fromBluetooth) { reportState(packet.sequence); reportDevices(packet.sequence); reportShow(packet.sequence, false); reportLdr(packet.sequence, false); }
       return;
     case CMD_AUTHORIZE_DEVICE:
       if (!fromBluetooth || !ownerSession.load() || !beginEnrollment()) result = 1;
@@ -645,7 +770,7 @@ void processCommand(const BcmPacket &packet, bool fromBluetooth) {
       else saveFeedbackConfig();
       break;
     case CMD_GET_CONFIG:
-      if (fromBluetooth) reportFeedbackConfig(packet.sequence);
+      if (fromBluetooth) { reportFeedbackConfig(packet.sequence); reportLdr(packet.sequence, true); }
       return;
     default:
       result = 2;
@@ -654,6 +779,7 @@ void processCommand(const BcmPacket &packet, bool fromBluetooth) {
   calculateOutputs();
   if (fromBluetooth) {
     sendAck(packet.sequence, packet.command, result);
+    if (packet.command == CMD_SHOW_SAVE || packet.command == CMD_SHOW_CONTROL) reportShow(packet.sequence, false);
     if (packet.command == CMD_SET_CONFIG && result == 0) reportFeedbackConfig(packet.sequence);
     reportState(packet.sequence);
   }
@@ -814,6 +940,9 @@ void setup() {
   btOwnerQueue = xQueueCreate(8, sizeof(OwnerEvent));
   loadLightConfig();
   loadFeedbackConfig();
+  ShowPattern savedShow;
+  if (prefs.getBytesLength("showV1") == sizeof(savedShow) &&
+      prefs.getBytes("showV1", &savedShow, sizeof(savedShow)) == sizeof(savedShow) && savedShow.valid()) showPattern = savedShow;
   configurePins();
 
   // En Core 3.x setPin exige el segundo argumento (longitud del PIN).
@@ -832,6 +961,8 @@ void setup() {
 
 void loop() {
   handleOwner();
+  if (!ownerSession.load()) ldrFields = 0;
+  if (!ownerSession.load() || (showEditing && millis() - showEditAt > 10000)) showEditing = false;
   handleBluetooth();
   handleEspNowPackets();
   updateLdr();

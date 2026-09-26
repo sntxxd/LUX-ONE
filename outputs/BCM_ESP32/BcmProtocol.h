@@ -28,6 +28,15 @@ enum BcmCommand : uint8_t {
   CMD_SET_CONFIG        = 0x19, // target: configuración persistente
   CMD_GET_CONFIG        = 0x1A,
   CMD_AUTHORIZE_DEVICE  = 0x1B, // abre ventana 120 s; solo Bluetooth autorizado
+  CMD_TEST_LOCK_SOUND   = 0x1C, // prueba aviso, sin mover seguros
+  CMD_SHOW_BEGIN       = 0x40,
+  CMD_SHOW_MASK        = 0x41, // target: paso 0..15, value: máscara 7 bits
+  CMD_SHOW_TIME        = 0x42, // target: paso, value: 200..5000 ms
+  CMD_SHOW_SAVE        = 0x43, // value: repetir 0/1, commit de los 16 pasos
+  CMD_SHOW_CONTROL     = 0x44, // value: detener 0 / iniciar 1
+  CMD_SHOW_GET         = 0x45,
+  CMD_LDR_STAGE        = 0x46, // target 0:on 1:off 2:confirm ms 3:dark-low
+  CMD_LDR_SAVE         = 0x47, // guarda bloque completo validado
 
   CMD_SYNC_REAR         = 0x30, // principal -> nodo trasero
   CMD_HEARTBEAT         = 0x31, // reservado para nodos futuros
@@ -36,6 +45,12 @@ enum BcmCommand : uint8_t {
   CMD_REPORT_ACK        = 0x81,
   CMD_REPORT_CONFIG     = 0x83,
   CMD_REPORT_DEVICES    = 0x84, // value: cantidad; flags: segundos de alta restantes
+  CMD_REPORT_SHOW       = 0x85, // target paso; value running; flags repeat
+  CMD_REPORT_SHOW_MASK  = 0x86,
+  CMD_REPORT_SHOW_TIME  = 0x87,
+  CMD_REPORT_CHIRP      = 0x88, // target cantidad, value pausa ms
+  CMD_REPORT_LDR       = 0x89, // value ADC filtrado; flags oscuro
+  CMD_REPORT_LDR_CONFIG = 0x8A, // target campo 0..3, value valor
 };
 
 enum BcmTarget : uint8_t {
@@ -56,6 +71,8 @@ enum BcmTarget : uint8_t {
   TARGET_CFG_UNLOCK_CHIRP = 22, // 0/1
   TARGET_CFG_UNLOCK_WHITE = 23, // 0/1
   TARGET_CFG_FEEDBACK_MS = 24, // 50..1000 ms
+  TARGET_CFG_LOCK_COUNT = 25, // 1..5 pitidos
+  TARGET_CFG_LOCK_GAP   = 26, // 50..2000 ms
 };
 
 // El empaquetado es obligatorio: sizeof(BcmPacket) debe ser 10 en todos los

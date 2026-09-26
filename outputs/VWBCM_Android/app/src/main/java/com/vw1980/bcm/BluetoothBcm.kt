@@ -20,7 +20,9 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 class BluetoothBcm {
-    private val adapter = BluetoothAdapter.getDefaultAdapter()
+    private val adapter by lazy { runCatching { BluetoothAdapter.getDefaultAdapter() }.getOrNull() }
+
+    fun label(device: BluetoothDevice): String = runCatching { device.name }.getOrNull() ?: "BCM"
     @Volatile private var socket: BluetoothSocket? = null
     private var input: InputStream? = null
     private var output: OutputStream? = null
@@ -67,11 +69,15 @@ class BluetoothBcm {
         }.onFailure { close(); if (it is CancellationException && it !is TimeoutCancellationException) throw it }
     }
 
-    suspend fun send(command: Int, target: Int = 0, value: Int = 0): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun send(command: Int, target: Int = 0, value: Int = 0): Result<Unit> =
+        sendPacket(command, target, value).map { Unit }
+
+    suspend fun sendPacket(command: Int, target: Int = 0, value: Int = 0): Result<Int> = withContext(Dispatchers.IO) {
         sendMutex.withLock { runCatching {
-            val packet = BcmProtocol.command(sequence++ and 0xFF, command, target, value)
+            val packetSequence = sequence++ and 0xFF
+            val packet = BcmProtocol.command(packetSequence, command, target, value)
             requireNotNull(output) { "BCM no conectado" }.apply { write(packet); flush() }
-            Unit
+            packetSequence
         } }
     }
 

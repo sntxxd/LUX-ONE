@@ -11,6 +11,17 @@ object BcmProtocol {
     const val CMD_SET_CONFIG = 0x19
     const val CMD_GET_CONFIG = 0x1A
     const val CMD_AUTHORIZE_DEVICE = 0x1B
+    const val CMD_TEST_LOCK_SOUND = 0x1C
+    const val CMD_SHOW_BEGIN = 0x40
+    const val CMD_SHOW_MASK = 0x41
+    const val CMD_SHOW_TIME = 0x42
+    const val CMD_SHOW_SAVE = 0x43
+    const val CMD_SHOW_CONTROL = 0x44
+    const val CMD_SHOW_GET = 0x45
+    const val CMD_LDR_STAGE = 0x46
+    const val CMD_LDR_SAVE = 0x47
+    const val TARGET_CFG_LOCK_COUNT = 25
+    const val TARGET_CFG_LOCK_GAP = 26
 
     data class Devices(val count: Int, val enrollmentSeconds: Int)
     fun parseDevices(packet: ByteArray): Devices? {
@@ -50,7 +61,9 @@ object BcmProtocol {
         val lockWhite: Boolean = true,
         val unlockChirp: Boolean = false,
         val unlockWhite: Boolean = false,
-        val feedbackMs: Int = 220
+        val feedbackMs: Int = 220,
+        val lockCount: Int = 1,
+        val lockGapMs: Int = 200
     )
 
     fun command(sequence: Int, command: Int, target: Int, value: Int): ByteArray {
