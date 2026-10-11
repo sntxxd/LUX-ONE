@@ -1,0 +1,15 @@
+Designator,Quantity,Part,Description
+U1,1,ESP32,ESP32 DevKit/WROOM Microcontroller
+K1-K11,11,Automotive Relay 12V,12V Automotive Relay
+IC1-IC2,2,ULN2003A,7-channel Relay Driver (includes flyback diode)
+Q1-Q2,2,IRLZ44N,N-Channel Logic Level Power MOSFET
+OK1-OK6,6,PC817,1-Channel Optocoupler
+R1-R6,6,1k ohm Resistor,Input resistor for optocouplers
+LDR1,1,GL5528,LDR Photoresistor
+R7,1,10k ohm Resistor,Resistor for LDR voltage divider
+PS1,1,Buck Converter Module,DC-DC Step-Down Module 12V to 5V/3.3V
+J1,1,Deutsch 8-pin,8-pin Deutsch DT Connector Kit
+J2,1,Deutsch 5-pin,5-pin Deutsch DT Connector Kit
+J3-J4,2,Deutsch 2-pin,2-pin Deutsch DT Connector Kit
+W1,1,Automotive Wire,AWG 14 and AWG 18 TXL/GXL Automotive Wire Roll
+PCB1,1,Custom 4-Layer PCB,Custom 4-Layer PCB Fabrication (2oz copper)
