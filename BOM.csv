@@ -1,15 +1,15 @@
-Designator,Quantity,Part,Description
-U1,1,ESP32,ESP32 DevKit/WROOM Microcontroller
-K1-K11,11,Automotive Relay 12V,12V Automotive Relay
-IC1-IC2,2,ULN2003A,7-channel Relay Driver (includes flyback diode)
-Q1-Q2,2,IRLZ44N,N-Channel Logic Level Power MOSFET
-OK1-OK6,6,PC817,1-Channel Optocoupler
-R1-R6,6,1k ohm Resistor,Input resistor for optocouplers
-LDR1,1,GL5528,LDR Photoresistor
-R7,1,10k ohm Resistor,Resistor for LDR voltage divider
-PS1,1,Buck Converter Module,DC-DC Step-Down Module 12V to 5V/3.3V
-J1,1,Deutsch 8-pin,8-pin Deutsch DT Connector Kit
-J2,1,Deutsch 5-pin,5-pin Deutsch DT Connector Kit
-J3-J4,2,Deutsch 2-pin,2-pin Deutsch DT Connector Kit
-W1,1,Automotive Wire,AWG 14 and AWG 18 TXL/GXL Automotive Wire Roll
-PCB1,1,Custom 4-Layer PCB,Custom 4-Layer PCB Fabrication (2oz copper)
+Item ID,Quantity,Component,Category,Notes
+1,10,1k Ohm Resistor,Passive,Combined 9 + 1 pieces
+2,6,1.5k Ohm Resistor,Passive,
+3,9,CW020 Relay,Electromechanical,
+4,9,2N2222 Transistor,Active,
+5,1,38-pin NodeMCU,Microcontroller,
+6,3,Breadboard,Prototyping,
+7,1,LDR (Light Dependent Resistor),Sensor,
+8,1,12V to 5V Buck Converter,Power,
+9,6,PC817 Optocoupler,Active,
+10,1,Faston Terminal Kit (Male & Female),Connectors,Assorted kit
+11,As needed,8-Core Automotive Wire,Wiring,Length depends on vehicle
+12,As needed,6-Core Automotive Wire,Wiring,Length depends on vehicle
+13,2,H4 Female Wiring Harness Connector,Connectors,
+14,2,H4 Male Wiring Harness Connector,Connectors,
