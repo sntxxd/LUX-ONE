@@ -17,10 +17,9 @@ the bcm have some security protocols, and levels of priority, like...
 3.. LDR: if there are not signal in the optocouplers, and if the option is enabled on the app, a LDR can turn on parking lights and low beams, only if there is dark for +5 secs
 
 ## WIRING
+<img width="3752" height="1632" alt="diagrama github con resisDOS" src="https://github.com/user-attachments/assets/f44cffb2-e49c-4932-a901-058b76c21f7e" />
 
-<img width="3176" height="1292" alt="diagrama github con resis" src="https://github.com/user-attachments/assets/69b5916f-cf92-4b85-86af-8f0168dd3f84" />
-
-
+the female harnesses that connect low and high beams, need to be connected to gnd and the NO/OUT of the respective relay (IN THE DIAGRAM/PIN LIST), and the male harness need to be connected to the respective optocoupler (IN THE DIAGRAM/PIN LIST) !! DONT FORGET THE RESISTOR OR YOU WILL BURN EVERYTHING !!, in the BOM i put two male harnesses, but u only need to connect one to the optocouplers, you can use the other male harness to keep one of the original car cables isolated 
 
 ## PINS 
 
