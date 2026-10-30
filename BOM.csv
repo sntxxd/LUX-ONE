@@ -1,15 +1,16 @@
-Item ID,Quantity,Component,Category,Notes
-1,10,1k Ohm Resistor,Passive,Combined 9 + 1 pieces
-2,6,1.5k Ohm Resistor,Passive,
-3,9,CW020 Relay,Electromechanical,
-4,9,2N2222 Transistor,Active,
-5,1,38-pin NodeMCU,Microcontroller,
-6,3,Breadboard,Prototyping,
-7,1,LDR (Light Dependent Resistor),Sensor,
-8,1,12V to 5V Buck Converter,Power,
-9,6,PC817 Optocoupler,Active,
-10,1,Faston Terminal Kit (Male & Female),Connectors,Assorted kit
-11,As needed,8-Core Automotive Wire,Wiring,Length depends on vehicle
-12,As needed,6-Core Automotive Wire,Wiring,Length depends on vehicle
-13,2,H4 Female Wiring Harness Connector,Connectors,
-14,2,H4 Male Wiring Harness Connector,Connectors,
+Item,Quantity,Description
+1,9,1k Ohm Resistor
+2,6,1.5k Ohm Resistor
+3,1,10k Ohm Resistor
+4,9,CW020 Relay
+5,9,2N2222 Transistor
+6,1,NodeMCU (38-pin)
+7,3,Breadboard
+8,1,LDR (Light Dependent Resistor / Photoresistor)
+9,1,12V to 5V Buck Converter
+10,6,PC817 Optocoupler
+11,1,Faston Terminal Kit (Male & Female Spade Connectors)
+12,As needed,8-Core Automotive Wire (Length depends on vehicle)
+13,As needed,6-Core Automotive Wire (Length depends on vehicle)
+14,2,H4 Female Harness Connector
+15,2,H4 Male Harness Connector
