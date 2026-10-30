@@ -14,7 +14,8 @@ the bcm have some security protocols, and levels of priority, like...
 
 ## WIRING
 
-<img width="3752" height="1632" alt="diagrama github ldr" src="https://github.com/user-attachments/assets/1e41568d-58d4-411c-ab7c-9f83a14390ba" />
+<img width="3752" height="1632" alt="uhekjsdhfkjhsdfkj" src="https://github.com/user-attachments/assets/86e94349-ef59-44cc-9cd0-b3cc941791ee" />
+
 
 ## PINS 
 
