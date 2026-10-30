@@ -1,5 +1,3 @@
-
-<img width="2403" height="1110" alt="20261030_022535" src="https://github.com/user-attachments/assets/044f0d06-6949-4d35-9648-f30e28ab0cf1" />
 # ESP32 BCM for 1980 VW Beetle
 
 Hiiii!!! im sntxxd(Santiago Alonso)
@@ -8,6 +6,7 @@ i made this project/prototype cuz i wanted to give my classic 1980 vw sedan some
 
 this repo contains the firmware and app from the project, also contains the diagram, pinout and everything to build this project :D
 
+<img width="2403" height="1110" alt="20261030_022535" src="https://github.com/user-attachments/assets/044f0d06-6949-4d35-9648-f30e28ab0cf1" />
 
 ## Before starting, u should know :
 the bcm have some security protocols, and levels of priority, like...
