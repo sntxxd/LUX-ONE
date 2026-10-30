@@ -1,16 +1,16 @@
-Item,Quantity,Description
-1,9,1k Ohm Resistor
-2,6,1.5k Ohm Resistor
-3,1,10k Ohm Resistor
-4,9,CW020 Relay
-5,9,2N2222 Transistor
-6,1,NodeMCU (38-pin)
-7,3,Breadboard
-8,1,LDR (Light Dependent Resistor / Photoresistor)
-9,1,12V to 5V Buck Converter
-10,6,PC817 Optocoupler
-11,1,Faston Terminal Kit (Male & Female Spade Connectors)
-12,As needed,8-Core Automotive Wire (Length depends on vehicle)
-13,As needed,6-Core Automotive Wire (Length depends on vehicle)
-14,2,H4 Female Harness Connector
-15,2,H4 Male Harness Connector
+Item,Quantity,Description,Unit Price (USD),Total Price (USD),Link
+1,1,1k Ohm Resistor (100pcs/lot),0.95,0.95,https://www.aliexpress.us/item/3256802303553096.html
+2,1,1.5k Ohm Resistor (100pcs/lot),0.95,0.95,https://www.aliexpress.us/item/3256802303553096.html
+3,1,10k Ohm Resistor (100pcs/lot),0.95,0.95,https://www.aliexpress.us/item/3256802303553096.html
+4,9,5V 1 Channel Relay Module,0.99,8.91,https://www.aliexpress.us/item/3256812530488489.html
+5,1,2N2222 Transistor (50 pcs/lot),0.99,0.99,https://www.aliexpress.us/item/3256807019072073.html
+6,1,ESP32 38-Pin Module,7.77,7.77,https://www.aliexpress.us/item/3256812631863251.html
+7,3,Breadboard (830 Points),1.39,4.17,https://www.aliexpress.us/item/3256805953176144.html
+8,1,LDR GL5528 (10pcs/lot),0.56,0.56,https://www.aliexpress.us/item/3256806929749905.html
+9,1,Mini360 Buck Converter (12V to 5V),0.81,0.81,https://www.aliexpress.us/item/3256812431887335.html
+10,1,PC817 Optocoupler (Lot),0.99,0.99,https://www.aliexpress.us/item/3256808817190307.html
+11,1,Faston Terminal Assorted Kit (270pcs),0.99,0.99,https://www.aliexpress.us/item/3256810316060069.html
+12,1,"8-Core Sheathed Wire (18AWG, 5 meters)",29.5,29.5,https://www.aliexpress.us/item/3256809368174577.html
+13,1,"6-Core Sheathed Wire (18AWG, 5 meters)",21.25,21.25,https://www.aliexpress.us/item/3256809368174577.html
+14,1,H4 Female Harness Connector (Pack of 2),3.12,3.12,https://www.aliexpress.us/item/3256809048255676.html
+15,2,H4 Male Harness Adapter,0.99,1.98,https://www.aliexpress.us/item/3256808641903165.html
