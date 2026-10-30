@@ -2,17 +2,17 @@
 
 Hiiii!!! im sntxxd(Santiago Alonso)
 
-# WHAT IS THISSS?
+## WHAT IS THISSS?
 
 this project is a BCM that gives some modern features to a classic car (like a vw sedan), like, turn on the lights right from my phone, turn on the lights when is night, etc...
 
-# WHY DID I MADE IT?
+## WHY DID I MADE IT?
 
 i made this project/prototype cuz i wanted to give my classic 1980 vw sedan some modern features, but i didnt want to deeply modify the car, so i decided to make it plug and play, this is only the repo of the prototype, cause i dont have the money to buy the specific car relays or make the pcb, so this is fully made in breadbord / 3d printing
 
 this repo contains the firmware and app from the project, also contains the diagram, pinout and everything to build this project :D
 
-# IMAGE AND CAD
+## IMAGE AND CAD
 
 <img width="1282" height="665" alt="image" src="https://github.com/user-attachments/assets/847ac21c-0234-486b-8e93-8244ae0bd91a" />
 
