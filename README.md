@@ -38,11 +38,11 @@ the female harnesses that connect low and high beams, need to be connected to gn
 | **Relay 4 (2N2222)** | Right White Halo | GPIO 21 | Digital Output. |
 | **Relay 5 (2N2222)** | Left Orange Halo | GPIO 23 | Digital Output. |
 | **Relay 6 (2N2222)** | Right Orange Halo | GPIO 22 | Digital Output. |
-| **Relay 7 (2N2222)** | Left Parking Lights (Ex-Wiper) | GPIO 32 | Digital Output. |
+| **Relay 7 (2N2222)** | Left Parking Lights  | GPIO 32 | Digital Output. |
 | **Relay 8 (2N2222)** | Horn | GPIO 4 | Digital Output. |
-| **Relay 9 (2N2222)** | Actuator 1 | GPIO 15 | Digital Output (Requires a 10 kΩ pull-down resistor to GND). |
-| **Relay 10 (2N2222)** | Actuator 2 | GPIO 2 | Digital Output (Requires a 10 kΩ pull-down resistor to GND). |
-| **Relay 11 (2N2222)** | Right Parking Lights (New) | GPIO 33 | Digital Output (Requires a 10 kΩ pull-down resistor to GND). |
+| **Relay 9 (2N2222)** | Actuator 1 (NOT ENABLED YET) | GPIO 15 | Digital Output . |
+| **Relay 10 (2N2222)** | Actuator 2 (NOT ENABLED YET)| GPIO 2 | Digital Output . |
+| **Relay 11 (2N2222)** | Right Parking Lights | GPIO 33 | Digital Output. |
 
 ## Before uploading the firmware to the ESP32
 
