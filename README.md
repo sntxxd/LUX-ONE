@@ -51,6 +51,7 @@ the bcm have some security protocols, and levels of priority, like...
 
 when u pair your phone for the first time, this device becomes the master admin, u need to grant authorization to another device via the app, cause if another person tries to pair and open the car, the lux one will deny the access
 
+the detailed guide is in the readmes folder hehe
 
 ## COMPATIBLE DEVICES
 
