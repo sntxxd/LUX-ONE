@@ -6,6 +6,10 @@ i made this project/prototype cuz i wanted to give my classic 1980 vw sedan some
 
 this repo contains the firmware and app from the project, also contains the diagram, pinout and everything to build this project :D
 
+# IMAGE AND CAD
+
+<img width="1282" height="665" alt="image" src="https://github.com/user-attachments/assets/847ac21c-0234-486b-8e93-8244ae0bd91a" />
+
 <img width="2403" height="1110" alt="20261030_022535" src="https://github.com/user-attachments/assets/044f0d06-6949-4d35-9648-f30e28ab0cf1" />
 
 ## Before starting, u should know :
