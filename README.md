@@ -1,6 +1,10 @@
 # ESP32 BCM for 1980 VW Beetle
 
-Hiiii!!! this repo contains the firmware and app from the project, also contains the diagram, pinout and everything to build this project :D
+Hiiii!!! im sntxxd(Santiago Alonso)
+
+i made this project/prototype cuz i wanted to give my classic 1980 vw sedan some modern features, but i didnt want to deeply modify the car, so i decided to make it plug and play, this is only the repo of the prototype, cause i dont have the money to buy the specific car relays or make the pcb, so this is fully made in breadbord / 3d printing
+
+this repo contains the firmware and app from the project, also contains the diagram, pinout and everything to build this project :D
 
 
 ## Before starting, u should know :
@@ -14,7 +18,8 @@ the bcm have some security protocols, and levels of priority, like...
 
 ## WIRING
 
-<img width="3752" height="1632" alt="uhekjsdhfkjhsdfkj" src="https://github.com/user-attachments/assets/86e94349-ef59-44cc-9cd0-b3cc941791ee" />
+<img width="3176" height="1292" alt="diagrama github con resis" src="https://github.com/user-attachments/assets/69b5916f-cf92-4b85-86af-8f0168dd3f84" />
+
 
 
 ## PINS 
